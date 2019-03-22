@@ -50,13 +50,18 @@ app.post('/api/users', async (req, res) => {
             username: 'Rafael',
             password: '1A2b@#3Cd'
         }
-        res.status(200).send(await management.createUser(user));
+
+        const user = await management.createUser(user);
+
+        res.status(200).send(user);
     } catch (err) {
         res.status(500).json(err);
     }
 });
 
-// 2 - Generate the access token OR the MFA(Multi Factor Auth) token (JUST ONCE)
+// 2 - Generate the access token OR the Multi Factor Auth token
+//     If the MFA is disabled then it will be return an access token normally.
+//     If the MFA is enabled then the MFA token will be returned.
 app.post('/token', async (req, res) => {
     const data = {
         client_id: '21CTSCJrXvK7h41r3LSw1iQpnsomdYEp',
@@ -76,7 +81,29 @@ app.post('/token', async (req, res) => {
       });
 });
 
-// Generate the access token (2FA CODE REQUIRED)
+//3 - Generate the QRCode and the recovery codes (JUST ONCE)
+//    If you try to generate 2 times, will be returned an error.
+app.post('/mfa/associate', async (req, res) => {
+
+    const token = req.body.token;
+
+    var options = { method: 'POST',
+        url: 'https://dev-rafakwolf.auth0.com/mfa/associate',
+        headers: { authorization: 'Bearer '+token },
+        body: { authenticator_types: [ 'otp' ] },
+        json: true };
+  
+  request(options, (error, response, body) => {
+    if (error) {
+        res.status(500).json(error);
+    }
+    res.status(200).json(body);
+  });
+});
+
+//4 - Generate the access token (2FA CODE REQUIRED)
+//    Once you have the Google Authenticator with the QR code registered
+//    get the 6-digit code and send inside OTP param.
 app.post('/mfa/auth', async (req, res) => {
 
     const mfa_token = req.body.mfa_token;
@@ -90,7 +117,7 @@ app.post('/mfa/auth', async (req, res) => {
         grant_type: 'http://auth0.com/oauth/grant-type/mfa-otp',
         audience: 'https://teste-api.com',
         connection: 'Username-Password-Authentication',
-        mfa_token,
+        mfa_token, // -> generated at step 2
         otp
     };
 
@@ -100,26 +127,6 @@ app.post('/mfa/auth', async (req, res) => {
         }
         res.status(200).json(userData);
       });
-});
-
-
-// Generate the QRCode Access and the recovery codes
-app.post('/mfa/associate', async (req, res) => {
-
-    const token = req.body.token;
-
-    var options = { method: 'POST',
-        url: 'https://dev-rafakwolf.auth0.com/mfa/associate',
-        headers: { authorization: 'Bearer '+token },
-        body: { authenticator_types: [ 'otp' ] },
-        json: true };
-  
-  request(options, function (error, response, body) {
-    if (error) {
-        res.status(500).json(error);
-    }
-    res.status(200).json(body);
-  });
 });
 
 
